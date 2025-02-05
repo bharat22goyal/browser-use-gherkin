@@ -4,6 +4,8 @@ import sys
 import argparse
 from setup_test_env import setup_test_environment
 from dotenv import load_dotenv
+import logging
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -100,6 +102,60 @@ def run_tests(test_type='llm', provider=None, model=None, base_url=None, api_key
     
     # Set test type in environment
     env['TEST_TYPE'] = test_type
+
+    # Configure logging
+    log_level = os.getenv('TEST_LOG_LEVEL', 'INFO').upper()
+    log_level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR
+    }
+
+    # Reset root logger
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+
+    # Set up file logging
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = f"test-reports/complete_test_{timestamp}.log"
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+    # Create and configure file handler
+    file_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
+    file_handler.setLevel(log_level_map.get(log_level, logging.INFO))
+    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level_map.get(log_level, logging.INFO))
+    console_formatter = logging.Formatter('%(levelname)s - %(message)s')
+    console_handler.setFormatter(console_formatter)
+    
+    # Configure root logger
+    root.setLevel(log_level_map.get(log_level, logging.INFO))
+    root.addHandler(file_handler)
+    root.addHandler(console_handler)
+
+    # Configure agent loggers
+    agent_loggers = [
+        'browser_use.agent',
+        'browser_use.browser',
+        'browser_use.controller',
+        'browser_use.llm',
+        'browser_use.tools'
+    ]
+    
+    for logger_name in agent_loggers:
+        agent_logger = logging.getLogger(logger_name)
+        agent_logger.setLevel(log_level_map.get(log_level, logging.INFO))
+        agent_logger.addHandler(file_handler)
+        agent_logger.addHandler(console_handler)
+    
+    # Log initial message
+    logging.info(f"Log file created at: {log_file}")
     
     # Print test configuration
     print(f"\nRunning {test_type} tests")
@@ -115,16 +171,19 @@ def run_tests(test_type='llm', provider=None, model=None, base_url=None, api_key
             if model:
                 env['TEST_LLM_MODEL'] = model
 
-        print("\nUsing LLM Configuration:")
-        print(f"Provider: {env.get('TEST_LLM_PROVIDER', 'default from .env')}")
-        print(f"Model: {env.get('TEST_LLM_MODEL', 'default from .env')}")
-        print(f"Base URL: {env.get('TEST_LLM_BASE_URL', 'default from .env')}")
+        logging.info("\nUsing LLM Configuration:")
+        logging.info(f"Provider: {env.get('TEST_LLM_PROVIDER', 'default from .env')}")
+        logging.info(f"Model: {env.get('TEST_LLM_MODEL', 'default from .env')}")
+        logging.info(f"Base URL: {env.get('TEST_LLM_BASE_URL', 'default from .env')}")
     
     # Set up behave configuration with tags based on test type
     args = [
         '--format=behave_html_formatter:HTMLFormatter',
         '--outfile=test-reports/behave-report.html',
         '--format=pretty',  # Also show console output
+        f'--logging-level={log_level.lower()}',  # Set behave logging level
+        '--define',
+        f'logging.level={log_level.lower()}'  # Pass logging level to steps
     ]
     
     # Add tag filtering based on test type
@@ -138,12 +197,15 @@ def run_tests(test_type='llm', provider=None, model=None, base_url=None, api_key
     args.append('features/')
     
     try:
+        # Log test configuration
+        logging.info(f"Running behave with arguments: {' '.join(args)}")
+        
         # Run behave with configuration
         os.environ.update(env)  # Update environment variables
         config = Configuration(args)
         run_behave(config)
         
-        print("\nTest execution completed. HTML report generated at test-reports/behave-report.html")
+        logging.info("\nTest execution completed. HTML report generated at test-reports/behave-report.html")
         
         # Make the report more readable by adding CSS
         report_file = 'test-reports/behave-report.html'
@@ -170,8 +232,20 @@ def run_tests(test_type='llm', provider=None, model=None, base_url=None, api_key
             with open(report_file, 'w') as f:
                 f.write(content)
     except Exception as e:
-        print(f"\nTest execution failed with error: {str(e)}")
+        logging.error(f"\nTest execution failed with error: {str(e)}")
         raise
+    finally:
+        # Clean up logging handlers
+        if file_handler:
+            file_handler.close()
+            logging.getLogger().removeHandler(file_handler)
+        
+        # Reset root logger to default state
+        for handler in logging.getLogger().handlers[:]:
+            logging.getLogger().removeHandler(handler)
+        
+        # Restore basic console logging
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 
 def list_available_models():
     models = get_available_models()

@@ -5,6 +5,7 @@ import asyncio
 import nest_asyncio
 from browser_use.browser.browser import Browser, BrowserConfig
 from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
+import logging
 
 # Enable nested event loops
 nest_asyncio.apply()
@@ -12,25 +13,32 @@ nest_asyncio.apply()
 load_dotenv()
 
 def before_all(context):
+    logging.info("Starting test execution setup")
+    
     # Get test type from environment
     test_type = os.getenv('TEST_TYPE', 'all')
+    logging.info(f"Test type: {test_type}")
     
     # Create a single event loop for all tests
     context.loop = asyncio.get_event_loop()
     if context.loop.is_closed():
         context.loop = asyncio.new_event_loop()
     asyncio.set_event_loop(context.loop)
+    logging.info("Event loop initialized")
 
     # Initialize Playwright for non-LLM tests
     if test_type in ['non-llm', 'all']:
+        logging.info("Initializing Playwright for non-LLM tests")
         context.playwright = sync_playwright().start()
         context.browser = context.playwright.chromium.launch(
             headless=False,
             args=['--start-maximized']
         )
+        logging.info("Playwright browser launched")
 
     # Initialize browser-use for LLM tests
     if test_type in ['llm', 'all']:
+        logging.info("Initializing browser-use for LLM tests")
         browser_config = BrowserConfig(
             headless=False,
             disable_security=False,
@@ -44,10 +52,10 @@ def before_all(context):
         context.llm_base_url = os.getenv('TEST_LLM_BASE_URL', 'https://api.gemini.com')
         context.llm_api_key = os.getenv('GOOGLE_API_KEY', '')
 
-        print(f"\nUsing LLM Configuration:")
-        print(f"Provider: {context.llm_provider}")
-        print(f"Model: {context.llm_model}")
-        print(f"Base URL: {context.llm_base_url}")
+        logging.info("LLM Configuration:")
+        logging.info(f"Provider: {context.llm_provider}")
+        logging.info(f"Model: {context.llm_model}")
+        logging.info(f"Base URL: {context.llm_base_url}")
 
         # Initialize LLM
         from src.utils import utils
@@ -58,15 +66,22 @@ def before_all(context):
             base_url=context.llm_base_url,
             api_key=context.llm_api_key
         )
+        logging.info("LLM initialized successfully")
 
 def before_scenario(context, scenario):
+    logging.info(f"\nStarting scenario: {scenario.name}")
+    logging.info(f"Tags: {scenario.tags}")
+    
     if 'non-llm' in scenario.tags:
+        logging.info("Setting up Playwright context for non-LLM test")
         # For non-LLM tests, use Playwright directly
         context.browser_context = context.browser.new_context(
             viewport={'width': 1920, 'height': 1080}
         )
         context.page = context.browser_context.new_page()
+        logging.info("Playwright context and page created")
     else:
+        logging.info("Setting up browser-use context for LLM test")
         # For LLM tests, use browser-use
         async def init_browser_context():
             context_config = BrowserContextConfig(
@@ -77,16 +92,22 @@ def before_scenario(context, scenario):
                 )
             )
             context.browser_context = await context.browser_instance.new_context(config=context_config)
+            logging.info("Browser-use context initialized")
 
         # Run the async initialization in the event loop
         context.loop.run_until_complete(init_browser_context())
 
 def after_scenario(context, scenario):
+    logging.info(f"\nCompleting scenario: {scenario.name}")
+    logging.info(f"Status: {'Passed' if scenario.status == 'passed' else 'Failed'}")
+    
     if 'non-llm' in scenario.tags:
+        logging.info("Cleaning up Playwright context")
         # For non-LLM tests, close Playwright context
         if hasattr(context, 'browser_context'):
             context.browser_context.close()
     else:
+        logging.info("Cleaning up browser-use context")
         # For LLM tests, close browser-use context
         async def cleanup_browser_context():
             if hasattr(context, 'browser_context'):
@@ -96,8 +117,11 @@ def after_scenario(context, scenario):
         context.loop.run_until_complete(cleanup_browser_context())
 
 def after_all(context):
+    logging.info("\nPerforming final cleanup")
+    
     # Clean up LLM browser
     if hasattr(context, 'browser_instance'):
+        logging.info("Cleaning up LLM browser")
         async def cleanup_browser():
             await context.browser_instance.close()
         
@@ -106,19 +130,23 @@ def after_all(context):
             context.loop.run_until_complete(cleanup_browser())
             pending = asyncio.all_tasks(context.loop)
             context.loop.run_until_complete(asyncio.gather(*pending))
-        except:
-            pass
+            logging.info("LLM browser cleanup completed")
+        except Exception as e:
+            logging.error(f"Error during LLM browser cleanup: {str(e)}")
     
     # Clean up Playwright
     if hasattr(context, 'browser'):
+        logging.info("Cleaning up Playwright browser")
         context.browser.close()
     if hasattr(context, 'playwright'):
         context.playwright.stop()
+        logging.info("Playwright cleanup completed")
     
     # Clean up event loop
     if hasattr(context, 'loop'):
         try:
             context.loop.close()
-        except:
-            pass
+            logging.info("Event loop closed")
+        except Exception as e:
+            logging.error(f"Error closing event loop: {str(e)}")
         asyncio.set_event_loop(None) 
