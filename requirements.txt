@@ -8,3 +8,5 @@ behave-html-formatter==0.9.10
 selenium>=4.16.0
 webdriver-manager>=4.0.1
 asyncio==3.4.3
+nest-asyncio==1.5.8
+python-dotenv==1.0.1

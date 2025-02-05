@@ -74,19 +74,4 @@ def step_impl(context):
         return await agent.run(max_steps=5)
     
     context.history = context.loop.run_until_complete(run_agent())
-    assert context.history.errors() == []
-
-@then('I should see the OpenAI logo')
-def step_impl(context):
-    context.task = "verify that the OpenAI logo is visible on the page"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=True
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
     assert context.history.errors() == [] 

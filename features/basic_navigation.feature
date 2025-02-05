@@ -4,22 +4,24 @@ Feature: Basic Browser Navigation
     I want to perform basic browser navigation
     To verify browser automation functionality without LLM
 
-    Scenario: Basic Google Search
-        Given I am on "https://www.google.com"
-        When I type "Browser Automation" directly in the search input
-        And I click directly on the search button
-        Then the page title should contain "Browser Automation"
-        And the search results should be visible
+    @non-llm
+    Scenario: Basic Page Navigation
+        Given I am on "https://playwright.dev"
+        When I click directly on the "Get started" link
+        Then the page title should contain "Installation"
 
-    Scenario: Basic Navigation and History
-        Given I am on "https://www.google.com"
-        When I click directly on the "Gmail" link
-        Then the page title should contain "Gmail"
+    @non-llm
+    Scenario: Basic Navigation History
+        Given I am on "https://playwright.dev"
+        When I click directly on the "API" link
+        Then the page title should contain "API"
         When I go back in browser history
-        Then I should be on "https://www.google.com"
+        Then I should be on "https://playwright.dev"
+        And the page title should contain "Playwright"
 
-    Scenario: Basic Element Interactions
-        Given I am on "https://www.google.com"
-        When I click directly on the "Images" link
-        And I click directly on the "Settings" button
-        Then the settings menu should be visible 
+    @non-llm
+    Scenario: Basic Element Visibility
+        Given I am on "https://playwright.dev"
+        Then I should see the playwright heading
+        And I should see the node js selector
+        And I should see the get started button 

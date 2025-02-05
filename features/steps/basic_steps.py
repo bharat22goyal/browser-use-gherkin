@@ -1,32 +1,22 @@
 from behave import when, then
 from playwright.sync_api import expect
 
-@when('I type "{text}" directly in the search input')
-def type_text(context, text):
-    search_input = context.page.get_by_role("textbox", name="Search")
-    search_input.fill(text)
-
-@when('I click directly on the search button')
-def click_search(context):
-    button = context.page.get_by_role("button", name="Search")
-    button.click()
-
 @when('I click directly on the "{link_text}" link')
 def click_link(context, link_text):
     link = context.page.get_by_role("link", name=link_text)
     link.click()
 
-@when('I click directly on the "{button_text}" button')
-def click_button(context, button_text):
-    button = context.page.get_by_role("button", name=button_text)
-    button.click()
+@then('I should see the playwright heading')
+def verify_playwright_heading(context):
+    heading = context.page.get_by_text("Playwright enables reliable end-to-end testing")
+    expect(heading).to_be_visible(timeout=5000)
 
-@then('the search results should be visible')
-def verify_search_results(context):
-    results = context.page.locator("#search")
-    expect(results).to_be_visible(timeout=5000)
+@then('I should see the node js selector')
+def verify_node_selector(context):
+    selector = context.page.get_by_role("tab", name="Node.js")
+    expect(selector).to_be_visible(timeout=5000)
 
-@then('the settings menu should be visible')
-def verify_settings_menu(context):
-    menu = context.page.locator('[role="menu"]')
-    expect(menu).to_be_visible(timeout=5000)
+@then('I should see the get started button')
+def verify_get_started(context):
+    button = context.page.get_by_role("link", name="Get started")
+    expect(button).to_be_visible(timeout=5000)

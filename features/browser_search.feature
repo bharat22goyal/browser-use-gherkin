@@ -6,12 +6,12 @@ Feature: Browser Search Functionality
 
     Scenario: Search with LLM
         Given I am on the Google homepage
-        When I search for "OpenAI"
+        When I search for "OpenAI ChatGPT"
         Then I should see search results
         And the first result should contain "openai.com"
 
     Scenario: Visual Search with LLM
         Given I am on the Google homepage
-        When I search for "Nvidia" with vision enabled
+        When I search for "OpenAI logo" with vision enabled
         Then I should see search results with images
-        And I should see the Nvidia logo 
+        And I should see the OpenAI logo 

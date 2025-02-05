@@ -80,7 +80,7 @@ def get_provider_config(provider):
     }
     return config.get(provider, {})
 
-def run_tests(provider=None, model=None, base_url=None, api_key=None, test_type='llm'):
+def run_tests(test_type='llm', provider=None, model=None, base_url=None, api_key=None):
     try:
         import behave.runner
         from behave.configuration import Configuration
@@ -95,43 +95,30 @@ def run_tests(provider=None, model=None, base_url=None, api_key=None, test_type=
     # Setup test environment
     setup_test_environment()
     
-    # Set environment variables for LLM if provided
+    # Set environment variables for LLM if needed
     env = os.environ.copy()
     
     # Set test type in environment
     env['TEST_TYPE'] = test_type
     
+    # Print test configuration
+    print(f"\nRunning {test_type} tests")
     if test_type == 'llm':
+        # If provider is specified, update environment variables
         if provider:
             env['TEST_LLM_PROVIDER'] = provider
-            # Get provider configuration from .env
             provider_config = get_provider_config(provider)
-            
-            # Use provided values or fall back to .env values
-            api_key = api_key or provider_config.get('api_key')
-            base_url = base_url or provider_config.get('base_url')
-            
             if api_key:
                 env['TEST_LLM_API_KEY'] = api_key
             if base_url:
                 env['TEST_LLM_BASE_URL'] = base_url
-                
-            # Warn if API key is missing for providers that require it
-            if provider not in ['ollama'] and not api_key:
-                print(f"\nWarning: No API key found for {provider}. Make sure to set {provider.upper()}_API_KEY in your .env file")
-        
-        if model:
-            env['TEST_LLM_MODEL'] = model
-        
-        # Print LLM configuration
+            if model:
+                env['TEST_LLM_MODEL'] = model
+
         print("\nUsing LLM Configuration:")
         print(f"Provider: {env.get('TEST_LLM_PROVIDER', 'default from .env')}")
         print(f"Model: {env.get('TEST_LLM_MODEL', 'default from .env')}")
         print(f"Base URL: {env.get('TEST_LLM_BASE_URL', 'default from .env')}")
-        if provider and provider != 'ollama':
-            print(f"API Key: {'Set' if api_key else 'Not Set'}")
-    else:
-        print(f"\nRunning non-LLM based tests")
     
     # Set up behave configuration with tags based on test type
     args = [
@@ -205,8 +192,8 @@ if __name__ == '__main__':
     parser.add_argument('--test-type', choices=['llm', 'non-llm', 'all'], default='llm',
                       help='Type of tests to run: llm, non-llm, or all (default: llm)')
     parser.add_argument('--provider', choices=['ollama', 'openai', 'anthropic', 'mistral', 'deepseek', 'gemini'],
-                      help='LLM provider to use (required for llm test type)')
-    parser.add_argument('--model', help='Model name to use (required for llm test type)')
+                      help='LLM provider to use (optional, will use value from .env)')
+    parser.add_argument('--model', help='Model name to use (optional, will use value from .env)')
     parser.add_argument('--base-url', help='Base URL for the LLM API (optional, will use default from .env)')
     parser.add_argument('--api-key', help='API key for the LLM service (optional, will use from .env)')
     parser.add_argument('--list-models', action='store_true', help='List available models for each provider')
@@ -216,10 +203,6 @@ if __name__ == '__main__':
     if args.list_models:
         list_available_models()
     else:
-        # Validate arguments for LLM tests
-        if args.test_type == 'llm' and not args.provider:
-            parser.error("--provider is required when running LLM tests")
-        
         # Validate model if provider is specified
         if args.provider and args.model:
             available_models = get_available_models().get(args.provider, [])
@@ -231,9 +214,9 @@ if __name__ == '__main__':
                 print("\nContinuing with specified model anyway...\n")
         
         run_tests(
+            test_type=args.test_type,
             provider=args.provider,
             model=args.model,
             base_url=args.base_url,
-            api_key=args.api_key,
-            test_type=args.test_type
+            api_key=args.api_key
         ) 
