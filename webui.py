@@ -665,6 +665,21 @@ def create_ui(config, theme_name="Ocean"):
                             info="Path to save complete test logs",
                             interactive=True
                         )
+
+                    with gr.Row():
+                        # Add HTML reporting options
+                        enable_html_report = gr.Checkbox(
+                            label="Enable HTML Report",
+                            value=True,  # Set to True by default
+                            info="Generate HTML test report"
+                        )
+                        html_report_path = gr.Textbox(
+                            label="HTML Report Path",
+                            placeholder="e.g., ./test-reports/behave-report.html",
+                            value="./test-reports/behave-report.html",
+                            info="Path to save HTML report",
+                            interactive=True
+                        )
                     
                     # Display feature file content
                     feature_content = gr.TextArea(
@@ -699,17 +714,17 @@ def create_ui(config, theme_name="Ocean"):
                         except Exception as e:
                             return f"Error loading feature file: {str(e)}"
 
-                    async def run_selected_test(feature_path, log_level, enable_complete_logging, log_file_path):
+                    async def run_selected_test(feature_path, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path):
                         if not feature_path:
                             return [], "Please select a feature file to run"
                         
-                        return await run_gherkin_tests([feature_path], log_level, enable_complete_logging, log_file_path)
+                        return await run_gherkin_tests([feature_path], log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path)
 
-                    async def run_all_gherkin_tests(log_level, enable_complete_logging, log_file_path):
+                    async def run_all_gherkin_tests(log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path):
                         feature_files = glob.glob("features/**/*.feature", recursive=True)
-                        return await run_gherkin_tests(feature_files, log_level, enable_complete_logging, log_file_path)
+                        return await run_gherkin_tests(feature_files, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path)
 
-                    async def run_gherkin_tests(feature_files, log_level, enable_complete_logging, log_file_path):
+                    async def run_gherkin_tests(feature_files, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path):
                         import os
                         import json
                         import asyncio
@@ -815,11 +830,19 @@ def create_ui(config, theme_name="Ocean"):
                                 '--no-skipped',   # Don't show skipped tests
                                 f'--logging-level={log_level.lower()}',  # Set behave logging level
                                 '--define',
-                                f'logging.level={log_level.lower()}',  # Pass logging level to steps
-                                # Add HTML formatter
-                                '--format', 'behave_html_formatter:HTMLFormatter',
-                                '--outfile', os.path.join('test-reports', 'behave-report.html')
+                                f'logging.level={log_level.lower()}'  # Pass logging level to steps
                             ]
+
+                            # Add HTML formatter if enabled
+                            if enable_html_report:
+                                args.extend([
+                                    '--format', 'behave_html_formatter:HTMLFormatter',
+                                    '--outfile', html_report_path
+                                ])
+                                logging.info(f"HTML reporting enabled, report will be saved to: {html_report_path}")
+                            else:
+                                logging.info("HTML reporting disabled")
+
                             if feature_files:
                                 args.extend(feature_files)
 
@@ -948,6 +971,13 @@ def create_ui(config, theme_name="Ocean"):
                         inputs=[enable_complete_logging],
                         outputs=[log_file_path]
                     )
+
+                    # Enable/disable HTML report path based on checkbox
+                    enable_html_report.change(
+                        lambda enabled: gr.update(interactive=enabled),
+                        inputs=[enable_html_report],
+                        outputs=[html_report_path]
+                    )
                     
                     # Connect event handlers
                     feature_list.change(
@@ -958,13 +988,13 @@ def create_ui(config, theme_name="Ocean"):
                     
                     run_tests_button.click(
                         fn=run_selected_test,
-                        inputs=[feature_list, log_level, enable_complete_logging, log_file_path],
+                        inputs=[feature_list, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path],
                         outputs=[test_results, test_output]
                     )
                     
                     run_all_tests_button.click(
                         fn=run_all_gherkin_tests,
-                        inputs=[log_level, enable_complete_logging, log_file_path],
+                        inputs=[log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path],
                         outputs=[test_results, test_output]
                     )
                     
