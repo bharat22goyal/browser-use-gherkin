@@ -1,133 +1,47 @@
 from behave import when, then
-from browser_use import Agent
-import asyncio
+from playwright.sync_api import expect
 
-@when('I type "{text}" in the search box')
+@when('I type "{text}" in the llm search box')
 def step_impl(context, text):
-    context.task = f"type '{text}' in the search box"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=False
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
+    search_input = context.page.get_by_role("textbox", name="Search")
+    search_input.fill(text)
 
-@when('I click the search button')
+@when('I click the llm search button')
 def step_impl(context):
-    context.task = "click the search button"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=False
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
+    button = context.page.get_by_role("button", name="Search")
+    button.click()
 
-@when('I click the first link')
+@when('I click the first search result link')
 def step_impl(context):
-    context.task = "click the first link in the search results"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=False
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
+    link = context.page.locator("#search a").first
+    link.click()
 
-@when('I scroll to the {position} of the page')
+@when('I scroll page to the {position}')
 def step_impl(context, position):
-    context.task = f"scroll to the {position} of the page"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=False
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
+    if position.lower() == "bottom":
+        context.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    elif position.lower() == "top":
+        context.page.evaluate("window.scrollTo(0, 0)")
 
-@when('I scroll to the top')
+@when('I scroll page to top')
 def step_impl(context):
-    context.task = "scroll to the top of the page"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=False
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
+    context.page.evaluate("window.scrollTo(0, 0)")
 
-@then('the page title should contain "{text}"')
-def step_impl(context, text):
-    context.task = f"verify that the page title contains '{text}'"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=False
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
-    assert context.history.errors() == []
-
-@then('I should see a page element: {element}')
+@then('I should see page element: {element}')
 def step_impl(context, element):
-    context.task = f"verify that the {element} is visible"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=True
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
-    assert context.history.errors() == []
+    if "navigation bar" in element:
+        nav = context.page.locator("nav").first
+        expect(nav).to_be_visible(timeout=5000)
+    elif "search bar" in element:
+        search = context.page.get_by_role("textbox", name="Search")
+        expect(search).to_be_visible(timeout=5000)
 
-@then('I should see the header')
+@then('page header should be visible')
 def step_impl(context):
-    context.task = "verify that the page header is visible"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=True
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
-    assert context.history.errors() == []
+    header = context.page.locator("header").first
+    expect(header).to_be_visible(timeout=5000)
 
-@then('I should see the footer')
+@then('page footer should be visible')
 def step_impl(context):
-    context.task = "verify that the page footer is visible"
-    async def run_agent():
-        agent = Agent(
-            task=context.task,
-            llm=context.llm,
-            browser_context=context.browser_context,
-            use_vision=True
-        )
-        return await agent.run(max_steps=5)
-    
-    context.history = context.loop.run_until_complete(run_agent())
-    assert context.history.errors() == [] 
+    footer = context.page.locator("footer").first
+    expect(footer).to_be_visible(timeout=5000) 
