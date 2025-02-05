@@ -25,13 +25,22 @@ def before_all(context):
     )
     
     # Set up LLM using environment variables
-    llm_provider = os.getenv('TEST_LLM_PROVIDER', 'ollama')
-    llm_model = os.getenv('TEST_LLM_MODEL', 'deepseek-r1:14b')
+    llm_provider = os.getenv('TEST_LLM_PROVIDER', 'ollama')  # Default to ollama if not set
+    llm_model = os.getenv('TEST_LLM_MODEL', 'deepseek-coder:6.7b')  # Default to deepseek-coder if not set
+    llm_base_url = os.getenv('TEST_LLM_BASE_URL', 'http://localhost:11434')  # Default Ollama URL
+    llm_api_key = os.getenv('TEST_LLM_API_KEY', '')  # Empty string if not needed
+    
+    print(f"\nUsing LLM Configuration:")
+    print(f"Provider: {llm_provider}")
+    print(f"Model: {llm_model}")
+    print(f"Base URL: {llm_base_url}")
     
     context.llm = utils.get_llm_model(
         provider=llm_provider,
         model_name=llm_model,
-        temperature=0.5
+        temperature=0.5,
+        base_url=llm_base_url,
+        api_key=llm_api_key
     )
 
 def before_scenario(context, scenario):

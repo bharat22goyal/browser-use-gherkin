@@ -187,3 +187,18 @@ data/
 
 # For Config Files (Current Settings)
 .config.pkl
+
+# Test Reports and Recordings
+test-reports/
+*.html
+*.json
+*.mp4
+*.webm
+*.zip
+
+# Browser recordings and traces
+record_videos/
+traces/
+
+# Misc
+Thumbs.db
