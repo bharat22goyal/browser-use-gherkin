@@ -10,12 +10,44 @@ load_dotenv()
 
 def get_available_models():
     return {
-        'ollama': ['deepseek-coder:6.7b', 'deepseek-r1:14b', 'llama2', 'mistral', 'codellama'],
-        'openai': ['gpt-4', 'gpt-4-turbo-preview', 'gpt-3.5-turbo'],
-        'anthropic': ['claude-3-opus-20240229', 'claude-3-sonnet-20240229'],
-        'mistral': ['mistral-tiny', 'mistral-small', 'mistral-medium'],
-        'deepseek': ['deepseek-chat', 'deepseek-coder'],
-        'gemini': ['gemini-2.0-flash-exp']
+        'anthropic': [
+            'claude-3-5-sonnet-20240620',
+            'claude-3-opus-20240229'
+        ],
+        'openai': [
+            'gpt-4o',
+            'gpt-4',
+            'gpt-3.5-turbo',
+            'o3-mini'
+        ],
+        'deepseek': [
+            'deepseek-chat',
+            'deepseek-reasoner'
+        ],
+        'gemini': [
+            'gemini-2.0-flash-exp',
+            'gemini-2.0-flash-thinking-exp',
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-flash-8b-latest',
+            'gemini-2.0-flash-thinking-exp-1219'
+        ],
+        'ollama': [
+            'qwen2.5:7b',
+            'llama2:7b',
+            'deepseek-r1:14b',
+            'deepseek-r1:32b'
+        ],
+        'azure_openai': [
+            'gpt-4o',
+            'gpt-4',
+            'gpt-3.5-turbo'
+        ],
+        'mistral': [
+            'pixtral-large-latest',
+            'mistral-large-latest',
+            'mistral-small-latest',
+            'ministral-8b-latest'
+        ]
     }
 
 def get_provider_config(provider):
