@@ -1,16 +1,11 @@
 import pdb
 import logging
-import os
-import glob
-import asyncio
-import argparse
-from typing import Tuple, Optional
-from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
 load_dotenv()
-
+import os
+import glob
 import asyncio
 import argparse
 import os
@@ -39,8 +34,6 @@ from src.controller.custom_controller import CustomController
 from gradio.themes import Citrus, Default, Glass, Monochrome, Ocean, Origin, Soft, Base
 from src.utils.default_config_settings import default_config, load_config_from_file, save_config_to_file, save_current_config, update_ui_from_config
 from src.utils.utils import update_model_dropdown, get_latest_files, capture_screenshot
-from langchain.chat_models.base import BaseChatModel
-from playwright.async_api import BrowserContext
 
 
 # Global variables for persistence
@@ -49,102 +42,6 @@ _global_browser_context = None
 
 # Create the global agent state instance
 _global_agent_state = AgentState()
-
-@dataclass
-class ExploratoryTest:
-    """Class for running exploratory tests with AI assistance"""
-    llm: BaseChatModel
-    browser: Browser
-    browser_context: BrowserContext | None
-    use_vision: bool = True
-    max_steps: int = 10
-
-    async def run_test(self, description: str, start_url: str) -> Tuple[str, str, Optional[str]]:
-        """Run an exploratory test and return observations, issues, and report path"""
-        try:
-            # Create task description that includes the full test steps
-            task = description  # Use the description directly as the task
-            
-            # Create and run agent
-            agent = CustomAgent(
-                task=task,
-                add_infos=start_url,  # Pass URL as additional info
-                llm=self.llm,
-                browser=self.browser,
-                browser_context=self.browser_context,
-                use_vision=self.use_vision,
-                controller=CustomController(),
-                system_prompt_class=CustomSystemPrompt,
-                agent_prompt_class=CustomAgentMessagePrompt,
-                max_actions_per_step=1,
-                agent_state=_global_agent_state
-            )
-            history = await agent.run(max_steps=self.max_steps)
-
-            # Format observations
-            observations = "### Test Observations\n\n"
-            for thought in history.model_thoughts():
-                observations += f"- {thought}\n"
-
-            # Format issues
-            issues = "### Discovered Issues\n\n"
-            for error in history.errors():
-                issues += f"- ❌ {error}\n"
-            if not history.errors():
-                issues += "✅ No issues found\n"
-
-            # Generate report
-            report_path = None
-            if history is not None and len(history.model_thoughts()) > 0:
-                report_dir = "test-reports"
-                os.makedirs(report_dir, exist_ok=True)
-                report_path = os.path.join(report_dir, f"exploratory_test_{agent.agent_id}.html")
-                
-                html_template = """
-                <html>
-                <head>
-                    <title>Exploratory Test Report</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        .section { margin: 20px 0; }
-                        .error { color: red; }
-                        .success { color: green; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Exploratory Test Report</h1>
-                    <div class="section">
-                        <h2>Test Description</h2>
-                        <p>{description}</p>
-                    </div>
-                    <div class="section">
-                        <h2>Observations</h2>
-                        {observations}
-                    </div>
-                    <div class="section">
-                        <h2>Issues</h2>
-                        {issues}
-                    </div>
-                </body>
-                </html>
-                """
-
-                with open(report_path, "w") as f:
-                    f.write(html_template.format(
-                        description=description,
-                        observations=observations.replace("### Test Observations\n\n", "").replace("\n", "<br>"),
-                        issues=issues.replace("### Discovered Issues\n\n", "").replace("\n", "<br>")
-                    ))
-
-            return observations, issues, report_path
-        except Exception as e:
-            import traceback
-            error = f"Error during test: {str(e)}\n{traceback.format_exc()}"
-            return (
-                "Test failed - see issues for details",
-                f"### Test Errors\n\n❌ {error}",
-                None
-            )
 
 async def stop_agent():
     """Request the agent to stop and update UI with enhanced feedback"""
@@ -347,7 +244,7 @@ async def run_org_agent(
                     headless=headless,
                     disable_security=disable_security,
                     chrome_instance_path=chrome_path,
-                    extra_chromium_args=extra_chromium_args
+                    extra_chromium_args=extra_chromium_args,
                 )
             )
 
@@ -363,7 +260,6 @@ async def run_org_agent(
                 )
             )
             
-        # Create and run agent without agent_state parameter
         agent = Agent(
             task=task,
             llm=llm,
@@ -375,27 +271,22 @@ async def run_org_agent(
         )
         history = await agent.run(max_steps=max_steps)
 
-        # Create agent history directory if it doesn't exist
-        os.makedirs(save_agent_history_path, exist_ok=True)
         history_file = os.path.join(save_agent_history_path, f"{agent.agent_id}.json")
         agent.save_history(history_file)
 
-        # Convert agent outputs to strings
-        final_result = str(history.final_result()) if history.final_result() else ""
-        errors = [str(error) for error in history.errors()] if history.errors() else []
-        model_actions = [str(action) for action in history.model_actions()] if history.model_actions() else []
-        model_thoughts = [str(thought) for thought in history.model_thoughts()] if history.model_thoughts() else []
+        final_result = history.final_result()
+        errors = history.errors()
+        model_actions = history.model_actions()
+        model_thoughts = history.model_thoughts()
 
-        # Get trace file if it exists
-        trace_files = get_latest_files(save_trace_path)
-        trace_file = trace_files.get('.zip') if trace_files else None
+        trace_file = get_latest_files(save_trace_path)
 
-        return final_result, errors, model_actions, model_thoughts, trace_file, history_file
+        return final_result, errors, model_actions, model_thoughts, trace_file.get('.zip'), history_file
     except Exception as e:
         import traceback
         traceback.print_exc()
-        errors = [str(e) + "\n" + traceback.format_exc()]
-        return '', errors, [], [], None, None
+        errors = str(e) + "\n" + traceback.format_exc()
+        return '', errors, '', '', None, None
     finally:
         # Handle cleanup based on persistence configuration
         if not keep_browser_open:
@@ -430,18 +321,6 @@ async def run_custom_agent(
 
         # Clear any previous stop request
         _global_agent_state.clear_stop()
-
-        # Process task and URL
-        task_description = task.value if hasattr(task, 'value') else str(task)
-        url = add_infos.value if hasattr(add_infos, 'value') else str(add_infos)
-        
-        # Construct the full task with URL if provided
-        if url and url.strip():
-            if not url.startswith(('http://', 'https://')):
-                url = f'https://{url}'
-            full_task = f"Go to {url} and perform the following test: {task_description}"
-        else:
-            full_task = task_description
 
         extra_chromium_args = [f"--window-size={window_w},{window_h}"]
         if use_own_browser:
@@ -479,10 +358,10 @@ async def run_custom_agent(
                 )
             )
             
-        # Create and run agent with the full task
+        # Create and run agent
         agent = CustomAgent(
-            task=full_task,
-            add_infos="",  # URL is now part of the task
+            task=task,
+            add_infos=add_infos,
             use_vision=use_vision,
             llm=llm,
             browser=_global_browser,
@@ -496,27 +375,22 @@ async def run_custom_agent(
         )
         history = await agent.run(max_steps=max_steps)
 
-        # Create agent history directory if it doesn't exist
-        os.makedirs(save_agent_history_path, exist_ok=True)
         history_file = os.path.join(save_agent_history_path, f"{agent.agent_id}.json")
         agent.save_history(history_file)
 
-        # Convert agent outputs to strings
-        final_result = str(history.final_result()) if history.final_result() else ""
-        errors = [str(error) for error in history.errors()] if history.errors() else []
-        model_actions = [str(action) for action in history.model_actions()] if history.model_actions() else []
-        model_thoughts = [str(thought) for thought in history.model_thoughts()] if history.model_thoughts() else []
+        final_result = history.final_result()
+        errors = history.errors()
+        model_actions = history.model_actions()
+        model_thoughts = history.model_thoughts()
 
-        # Get trace file if it exists
-        trace_files = get_latest_files(save_trace_path)
-        trace_file = trace_files.get('.zip') if trace_files else None
+        trace_file = get_latest_files(save_trace_path)        
 
-        return final_result, errors, model_actions, model_thoughts, trace_file, history_file
+        return final_result, errors, model_actions, model_thoughts, trace_file.get('.zip'), history_file
     except Exception as e:
         import traceback
         traceback.print_exc()
-        errors = [str(e) + "\n" + traceback.format_exc()]
-        return '', errors, [], [], None, None
+        errors = str(e) + "\n" + traceback.format_exc()
+        return '', errors, '', '', None, None
     finally:
         # Handle cleanup based on persistence configuration
         if not keep_browser_open:
@@ -555,70 +429,36 @@ async def run_with_stream(
     global _global_agent_state
     stream_vw = 80
     stream_vh = int(80 * window_h // window_w)
-    
-    # Initialize default outputs
-    html_content = f"<h1 style='width:{stream_vw}vw; height:{stream_vh}vh'>Starting browser session...</h1>" if headless else ""
-    final_result = errors = model_actions = model_thoughts = ""
-    video_file = trace_file = history = None
-    stop_button = gr.update(value="Stop", interactive=True)
-    run_button = gr.update(interactive=True)
-
-    try:
-        if not headless:
-            result = await run_browser_agent(
-                agent_type=agent_type,
-                llm_provider=llm_provider,
-                llm_model_name=llm_model_name,
-                llm_temperature=llm_temperature,
-                llm_base_url=llm_base_url,
-                llm_api_key=llm_api_key,
-                use_own_browser=use_own_browser,
-                keep_browser_open=keep_browser_open,
-                headless=headless,
-                disable_security=disable_security,
-                window_w=window_w,
-                window_h=window_h,
-                save_recording_path=save_recording_path if enable_recording else None,
-                save_agent_history_path=save_agent_history_path,
-                save_trace_path=save_trace_path,
-                enable_recording=enable_recording,
-                task=task,
-                add_infos=add_infos,
-                max_steps=max_steps,
-                use_vision=use_vision,
-                max_actions_per_step=max_actions_per_step,
-                tool_calling_method=tool_calling_method
-            )
-            
-            final_result, errors, model_actions, model_thoughts, latest_videos, trace, history_file, stop_button, run_button = result
-            
-            # Only use files that exist
-            if latest_videos and os.path.exists(latest_videos):
-                video_file = latest_videos
-                
-            if trace and os.path.exists(trace):
-                trace_file = trace
-                
-            if history_file and os.path.exists(history_file):
-                history = history_file
-            
-            # Convert lists to strings for markdown components
-            if isinstance(model_thoughts, list):
-                model_thoughts = "\n".join(model_thoughts) if model_thoughts else ""
-            if isinstance(errors, list):
-                errors = "\n".join(errors) if errors else ""
-            
-            yield [
-                html_content,                # Browser view (empty when not headless)
-                final_result or "",          # Test progress
-                model_thoughts,              # Test observations
-                errors,                      # Test issues
-                video_file,                  # Test recording
-                history,                     # Test report
-                stop_button,                 # Stop button
-                run_button                   # Run button
-            ]
-        else:
+    if not headless:
+        result = await run_browser_agent(
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            llm_model_name=llm_model_name,
+            llm_temperature=llm_temperature,
+            llm_base_url=llm_base_url,
+            llm_api_key=llm_api_key,
+            use_own_browser=use_own_browser,
+            keep_browser_open=keep_browser_open,
+            headless=headless,
+            disable_security=disable_security,
+            window_w=window_w,
+            window_h=window_h,
+            save_recording_path=save_recording_path,
+            save_agent_history_path=save_agent_history_path,
+            save_trace_path=save_trace_path,
+            enable_recording=enable_recording,
+            task=task,
+            add_infos=add_infos,
+            max_steps=max_steps,
+            use_vision=use_vision,
+            max_actions_per_step=max_actions_per_step,
+            tool_calling_method=tool_calling_method
+        )
+        # Add HTML content at the start of the result array
+        html_content = f"<h1 style='width:{stream_vw}vw; height:{stream_vh}vh'>Using browser...</h1>"
+        yield [html_content] + list(result)
+    else:
+        try:
             _global_agent_state.clear_stop()
             # Run the browser agent in the background
             agent_task = asyncio.create_task(
@@ -635,7 +475,7 @@ async def run_with_stream(
                     disable_security=disable_security,
                     window_w=window_w,
                     window_h=window_h,
-                    save_recording_path=save_recording_path if enable_recording else None,
+                    save_recording_path=save_recording_path,
                     save_agent_history_path=save_agent_history_path,
                     save_trace_path=save_trace_path,
                     enable_recording=enable_recording,
@@ -647,6 +487,12 @@ async def run_with_stream(
                     tool_calling_method=tool_calling_method
                 )
             )
+
+            # Initialize values for streaming
+            html_content = f"<h1 style='width:{stream_vw}vw; height:{stream_vh}vh'>Using browser...</h1>"
+            final_result = errors = model_actions = model_thoughts = ""
+            latest_videos = trace = history_file = None
+
 
             # Periodically update the stream while the agent task is running
             while not agent_task.done():
@@ -661,26 +507,30 @@ async def run_with_stream(
 
                 if _global_agent_state and _global_agent_state.is_stop_requested():
                     yield [
-                        html_content,                # Browser view
-                        final_result,                # Test progress
-                        model_thoughts,              # Test observations
-                        errors,                      # Test issues
-                        None,                        # Test recording
-                        None,                        # Test report
-                        gr.update(value="Stopping...", interactive=False),  # Stop button
-                        gr.update(interactive=False)   # Run button
+                        html_content,
+                        final_result,
+                        errors,
+                        model_actions,
+                        model_thoughts,
+                        latest_videos,
+                        trace,
+                        history_file,
+                        gr.update(value="Stopping...", interactive=False),  # stop_button
+                        gr.update(interactive=False),  # run_button
                     ]
                     break
                 else:
                     yield [
-                        html_content,                # Browser view
-                        final_result or "",          # Test progress
-                        model_thoughts or "",        # Test observations
-                        errors or "",                # Test issues
-                        None,                        # Test recording
-                        None,                        # Test report
-                        gr.update(value="Stop", interactive=True),  # Stop button
-                        gr.update(interactive=True)   # Run button
+                        html_content,
+                        final_result,
+                        errors,
+                        model_actions,
+                        model_thoughts,
+                        latest_videos,
+                        trace,
+                        history_file,
+                        gr.update(value="Stop", interactive=True),  # Re-enable stop button
+                        gr.update(interactive=True)  # Re-enable run button
                     ]
                 await asyncio.sleep(0.05)
 
@@ -688,59 +538,42 @@ async def run_with_stream(
             try:
                 result = await agent_task
                 final_result, errors, model_actions, model_thoughts, latest_videos, trace, history_file, stop_button, run_button = result
-                
-                # Only use files that exist
-                if latest_videos and os.path.exists(latest_videos):
-                    video_file = latest_videos
-                    
-                if trace and os.path.exists(trace):
-                    trace_file = trace
-                    
-                if history_file and os.path.exists(history_file):
-                    history = history_file
-                
-                # Convert lists to strings for markdown components
-                if isinstance(model_thoughts, list):
-                    model_thoughts = "\n".join(model_thoughts) if model_thoughts else ""
-                if isinstance(errors, list):
-                    errors = "\n".join(errors) if errors else ""
-                
-                yield [
-                    html_content,                # Browser view
-                    final_result or "",          # Test progress
-                    model_thoughts,              # Test observations
-                    errors,                      # Test issues
-                    video_file,                  # Test recording
-                    history,                     # Test report
-                    stop_button,                 # Stop button
-                    run_button                   # Run button
-                ]
+            except gr.Error:
+                final_result = ""
+                model_actions = ""
+                model_thoughts = ""
+                latest_videos = trace = history_file = None
+
             except Exception as e:
                 errors = f"Agent error: {str(e)}"
-                yield [
-                    html_content,                # Browser view
-                    "",                          # Test progress
-                    "",                          # Test observations
-                    errors,                      # Test issues
-                    None,                        # Test recording
-                    None,                        # Test report
-                    gr.update(value="Stop", interactive=True),  # Stop button
-                    gr.update(interactive=True)   # Run button
-                ]
 
-    except Exception as e:
-        import traceback
-        error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
-        yield [
-            f"<h1 style='width:{stream_vw}vw; height:{stream_vh}vh'>Error occurred</h1>" if headless else "",  # Browser view
-            "",                              # Test progress
-            "",                              # Test observations
-            error_msg,                       # Test issues
-            None,                            # Test recording
-            None,                            # Test report
-            gr.update(value="Stop", interactive=True),  # Stop button
-            gr.update(interactive=True)      # Run button
-        ]
+            yield [
+                html_content,
+                final_result,
+                errors,
+                model_actions,
+                model_thoughts,
+                latest_videos,
+                trace,
+                history_file,
+                stop_button,
+                run_button
+            ]
+
+        except Exception as e:
+            import traceback
+            yield [
+                f"<h1 style='width:{stream_vw}vw; height:{stream_vh}vh'>Waiting for browser session...</h1>",
+                "",
+                f"Error: {str(e)}\n{traceback.format_exc()}",
+                "",
+                "",
+                None,
+                None,
+                None,
+                gr.update(value="Stop", interactive=True),  # Re-enable stop button
+                gr.update(interactive=True)    # Re-enable run button
+            ]
 
 # Define the theme map globally
 theme_map = {
@@ -1171,150 +1004,7 @@ def create_ui(config, theme_name="Ocean"):
                         outputs=[test_results, test_output]
                     )
 
-            with gr.TabItem("🔍 Exploratory Testing", id=2):
-                with gr.Group():
-                    gr.Markdown("### AI-Driven Exploratory Testing")
-                    
-                    with gr.Row():
-                        test_description = gr.Textbox(
-                            label="Test Description",
-                            placeholder="Describe what you want to test...",
-                            lines=3,
-                            info="Describe the testing scenario in natural language"
-                        )
-                        
-                    with gr.Row():
-                        test_url = gr.Textbox(
-                            label="Starting URL",
-                            placeholder="https://example.com",
-                            info="The URL where the test should start"
-                        )
-                        
-                    with gr.Row():
-                        max_test_steps = gr.Slider(
-                            minimum=1,
-                            maximum=50,
-                            value=10,
-                            step=1,
-                            label="Maximum Test Steps",
-                            info="Maximum number of steps the AI will take"
-                        )
-                        use_vision_testing = gr.Checkbox(
-                            label="Use Visual Testing",
-                            value=True,
-                            info="Enable AI to use visual analysis during testing"
-                        )
-                        headless_testing = gr.Checkbox(
-                            label="Headless Mode",
-                            value=True,
-                            info="Run browser in headless mode (no visible window)"
-                        )
-                        
-                    with gr.Row():
-                        run_exploratory_test_button = gr.Button("▶️ Start Exploratory Test", variant="primary")
-                        stop_exploratory_test = gr.Button("⏹️ Stop Test", variant="stop")
-                
-                    with gr.Row(visible=False) as progress_row:
-                        test_progress = gr.HTML(
-                            value="",
-                            label="Live Test Progress"
-                        )
-                    
-                    with gr.Row(visible=False) as browser_row:
-                        with gr.Column():
-                            browser_stream = gr.HTML(
-                                value="",
-                                label="Live Browser View"
-                            )
-                    
-                    with gr.Row():
-                        test_observations = gr.Markdown(
-                            value="",
-                            label="Test Observations"
-                        )
-                        test_issues = gr.Markdown(
-                            value="",
-                            label="Discovered Issues"
-                        )
-                    
-                    with gr.Row():
-                        test_recording = gr.Video(
-                            label="Test Recording",
-                            interactive=False,
-                            visible=True
-                        )
-                        test_report = gr.File(
-                            label="Test Report",
-                            file_types=[".html", ".json"],
-                            interactive=False,
-                            visible=True
-                        )
-
-                    # Function to construct task description
-                    def construct_task(description, url):
-                        return description  # Just use the description directly
-
-                    # Connect exploratory test buttons
-                    run_exploratory_test_button.click(
-                        fn=lambda: (
-                            gr.update(visible=True) if headless_testing.value else gr.update(visible=False),  # progress_row
-                            gr.update(visible=True) if headless_testing.value else gr.update(visible=False),  # browser_row
-                        ),
-                        outputs=[progress_row, browser_row],
-                        queue=False
-                    ).then(
-                        fn=run_with_stream,
-                        inputs=[
-                            gr.Radio(choices=["org", "custom"], value="custom", visible=False),  # agent_type
-                            gr.Dropdown(choices=[provider for provider,model in utils.model_names.items()], 
-                                      value=os.getenv('TEST_LLM_PROVIDER', 'gemini'), 
-                                      visible=False),  # llm_provider
-                            gr.Dropdown(choices=utils.model_names.get(os.getenv('TEST_LLM_PROVIDER', 'gemini'), []),
-                                      value=os.getenv('TEST_LLM_MODEL', 'gemini-2.0-flash-exp'),
-                                      visible=False),  # llm_model_name
-                            gr.Slider(value=0.5, visible=False),  # llm_temperature
-                            gr.Textbox(value=os.getenv('TEST_LLM_BASE_URL', 'https://api.gemini.com'), visible=False),  # llm_base_url
-                            gr.Textbox(value=os.getenv('GOOGLE_API_KEY', ''), visible=False),  # llm_api_key
-                            gr.Checkbox(value=config['use_own_browser'], visible=False),  # use_own_browser
-                            gr.Checkbox(value=config['keep_browser_open'], visible=False),  # keep_browser_open
-                            headless_testing,  # headless
-                            gr.Checkbox(value=config['disable_security'], visible=False),  # disable_security
-                            gr.Number(value=config['window_w'], visible=False),  # window_w
-                            gr.Number(value=config['window_h'], visible=False),  # window_h
-                            gr.Textbox(value=config['save_recording_path'], visible=False),  # save_recording_path
-                            gr.Textbox(value=config['save_agent_history_path'], visible=False),  # save_agent_history_path
-                            gr.Textbox(value=config['save_trace_path'], visible=False),  # save_trace_path
-                            gr.Checkbox(value=config['enable_recording'], visible=False),  # enable_recording
-                            test_description,  # task - pass test description component directly
-                            test_url,  # add_infos - pass test URL component directly
-                            max_test_steps,  # max_steps
-                            use_vision_testing,  # use_vision
-                            gr.Slider(value=1, visible=False),  # max_actions_per_step
-                            gr.Dropdown(choices=["auto", "json_schema", "function_calling"], value="auto", visible=False)  # tool_calling_method
-                        ],
-                        outputs=[
-                            browser_stream,           # Browser view
-                            test_progress,           # Test progress
-                            test_observations,       # Test observations
-                            test_issues,            # Test issues
-                            test_recording,         # Test recording
-                            test_report,            # Test report
-                            stop_exploratory_test,  # Stop button
-                            run_exploratory_test_button  # Run button
-                        ],
-                        show_progress="hidden"  # Hide default progress bar since we have our own progress display
-                    )
-
-                    stop_exploratory_test.click(
-                        fn=stop_agent,
-                        inputs=[],
-                        outputs=[test_issues, stop_exploratory_test, run_exploratory_test_button]
-                    ).then(
-                        fn=lambda: (gr.update(visible=False), gr.update(visible=False)),
-                        outputs=[progress_row, browser_row]
-                    )
-
-            with gr.TabItem("⚙️ Agent Settings", id=3):
+            with gr.TabItem("⚙️ Agent Settings", id=2):
                 with gr.Group():
                     agent_type = gr.Radio(
                         ["org", "custom"],
@@ -1355,7 +1045,7 @@ def create_ui(config, theme_name="Ocean"):
                             visible=False
                         )
 
-            with gr.TabItem("🔧 LLM Configuration", id=4):
+            with gr.TabItem("🔧 LLM Configuration", id=3):
                 with gr.Group():
                     llm_provider = gr.Dropdown(
                         choices=[provider for provider,model in utils.model_names.items()],
@@ -1392,7 +1082,7 @@ def create_ui(config, theme_name="Ocean"):
                             info="Your API key (leave blank to use .env)"
                         )
 
-            with gr.TabItem("🌐 Browser Settings", id=5):
+            with gr.TabItem("🌐 Browser Settings", id=4):
                 with gr.Group():
                     with gr.Row():
                         use_own_browser = gr.Checkbox(
@@ -1457,7 +1147,7 @@ def create_ui(config, theme_name="Ocean"):
                         interactive=True,
                     )
 
-            with gr.TabItem("🤖 Run Agent", id=6):
+            with gr.TabItem("🤖 Run Agent", id=5):
                 task = gr.Textbox(
                     label="Task Description",
                     lines=4,
@@ -1482,7 +1172,7 @@ def create_ui(config, theme_name="Ocean"):
                         label="Live Browser View",
                 )
 
-            with gr.TabItem("📁 Configuration", id=7):
+            with gr.TabItem("📁 Configuration", id=6):
                 with gr.Group():
                     config_file_input = gr.File(
                         label="Load Config File",
@@ -1523,7 +1213,7 @@ def create_ui(config, theme_name="Ocean"):
                     outputs=[config_status]
                 )
 
-            with gr.TabItem("📊 Results", id=8):
+            with gr.TabItem("📊 Results", id=7):
                 with gr.Group():
 
                     recording_display = gr.Video(label="Latest Recording")
@@ -1582,7 +1272,7 @@ def create_ui(config, theme_name="Ocean"):
                     ],
                 )
 
-            with gr.TabItem("🎥 Recordings", id=9):
+            with gr.TabItem("🎥 Recordings", id=8):
                 def list_recordings(save_recording_path):
                     if not os.path.exists(save_recording_path):
                         return []
