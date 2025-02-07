@@ -219,3 +219,70 @@ CHROME_PERSISTENT_SESSION=true docker compose up --build
 - [x] **2025/01/26:** Thanks to @vvincent1234. Now browser-use-webui can combine with DeepSeek-r1 to engage in deep thinking!
 - [x] **2025/01/10:** Thanks to @casistack. Now we have Docker Setup option and also Support keep browser open between tasks.[Video tutorial demo](https://github.com/browser-use/web-ui/issues/1#issuecomment-2582511750).
 - [x] **2025/01/06:** Thanks to @richard-devbot. A New and Well-Designed WebUI is released. [Video tutorial demo](https://github.com/warmshao/browser-use-webui/issues/1#issuecomment-2573393113).
+
+## Gherkin Tests
+
+### Writing Tests
+1. Create `.feature` files in the `features` directory using Gherkin syntax
+2. Implement step definitions in `features/steps` directory
+3. Use the WebUI's Gherkin Tests tab to run and manage tests
+
+### Running Tests
+There are two ways to run the Gherkin tests:
+
+1. **Using the WebUI:**
+   - Navigate to the "🧪 Gherkin Tests" tab
+   - Upload your feature files
+   - Click "Run Tests" to execute
+   - View results in the test results table and output log
+
+2. **Using Command Line:**
+   ```bash
+   # Run all tests
+   behave
+
+   # Run specific feature file
+   behave features/browser_search.feature
+
+   # Run with JSON output
+   behave --format json.pretty
+   ```
+
+### Example Feature File
+```gherkin
+@llm
+Feature: Browser Search Functionality
+    Scenario: Search with LLM
+        Given I am on the Google homepage
+        When I search for "OpenAI ChatGPT"
+        Then I should see search results
+        And the first result should contain "openai.com"
+```
+
+### Test Structure
+```
+features/
+├── browser_search.feature   # LLM-based tests
+└── steps/
+    ├── browser_steps.py    # LLM browser interactions
+    ├── interaction_steps.py # Common UI interactions
+    ├── common_steps.py     # Basic navigation steps
+    └── visual_steps.py     # Visual verification steps
+```
+
+### Test Development
+
+1. **Adding LLM Tests**
+   - Add scenarios to `browser_search.feature`
+   - Use natural language in step definitions
+   - Tag feature with `@llm`
+
+2. **Common Steps**
+   - Shared functionality in `common_steps.py`
+   - Basic browser navigation and verification
+
+### Best Practices
+- Keep scenarios focused and minimal
+- Use descriptive scenario names
+- Follow Gherkin best practices for scenario writing
+- Maintain clear separation of concerns in step definitions

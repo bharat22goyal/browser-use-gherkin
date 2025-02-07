@@ -629,7 +629,382 @@ def create_ui(config, theme_name="Ocean"):
             )
 
         with gr.Tabs() as tabs:
-            with gr.TabItem("⚙️ Agent Settings", id=1):
+            with gr.TabItem("🧪 Gherkin Tests", id=1):
+                with gr.Group():
+                    gr.Markdown("### Gherkin Test Runner")
+                    
+                    with gr.Row():
+                        # Display available feature files
+                        feature_list = gr.Dropdown(
+                            label="Available Feature Files",
+                            choices=glob.glob("features/**/*.feature", recursive=True),
+                            value=None,
+                            info="Select a feature file to run",
+                            allow_custom_value=False
+                        )
+                        
+                        # Add logging level dropdown
+                        log_level = gr.Dropdown(
+                            label="Logging Level",
+                            choices=["INFO", "DEBUG", "WARNING", "ERROR"],
+                            value="INFO",
+                            info="Select logging detail level"
+                        )
+
+                    with gr.Row():
+                        # Add complete logging options
+                        enable_complete_logging = gr.Checkbox(
+                            label="Enable Complete Logging",
+                            value=True,  # Set to True by default
+                            info="Save complete test logs to file"
+                        )
+                        log_file_path = gr.Textbox(
+                            label="Log File Path",
+                            placeholder="e.g., ./test-reports/complete_test.log",
+                            value="./test-reports/complete_test.log",
+                            info="Path to save complete test logs",
+                            interactive=True
+                        )
+
+                    with gr.Row():
+                        # Add HTML reporting options
+                        enable_html_report = gr.Checkbox(
+                            label="Enable HTML Report",
+                            value=True,  # Set to True by default
+                            info="Generate HTML test report"
+                        )
+                        html_report_path = gr.Textbox(
+                            label="HTML Report Path",
+                            placeholder="e.g., ./test-reports/behave-report.html",
+                            value="./test-reports/behave-report.html",
+                            info="Path to save HTML report",
+                            interactive=True
+                        )
+                    
+                    # Display feature file content
+                    feature_content = gr.TextArea(
+                        label="Feature File Content",
+                        interactive=False,
+                        lines=10
+                    )
+
+                    with gr.Row():
+                        run_tests_button = gr.Button("▶️ Run Selected Test", variant="primary")
+                        run_all_tests_button = gr.Button("▶️ Run All Tests", variant="primary")
+                        clear_results_button = gr.Button("🗑️ Clear Results")
+                    
+                    test_results = gr.Dataframe(
+                        headers=["Feature", "Scenario", "Status", "Duration", "Error"],
+                        label="Test Results",
+                        interactive=False
+                    )
+                    
+                    test_output = gr.Markdown(
+                        label="Test Output",
+                        value="",
+                        show_label=True
+                    )
+
+                    def load_feature_content(feature_path):
+                        if not feature_path:
+                            return ""
+                        try:
+                            with open(feature_path, 'r') as f:
+                                return f.read()
+                        except Exception as e:
+                            return f"Error loading feature file: {str(e)}"
+
+                    async def run_selected_test(feature_path, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path):
+                        if not feature_path:
+                            return [], "Please select a feature file to run"
+                        
+                        return await run_gherkin_tests([feature_path], log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path)
+
+                    async def run_all_gherkin_tests(log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path):
+                        feature_files = glob.glob("features/**/*.feature", recursive=True)
+                        return await run_gherkin_tests(feature_files, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path)
+
+                    async def run_gherkin_tests(feature_files, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path):
+                        import os
+                        import json
+                        import asyncio
+                        from behave.__main__ import run_behave
+                        from behave.configuration import Configuration
+                        import logging
+                        from datetime import datetime
+                        import sys
+                        
+                        results = []
+                        output_lines = []
+                        file_handler = None
+                        
+                        try:
+                            # Set up logging
+                            log_level_map = {
+                                "DEBUG": logging.DEBUG,
+                                "INFO": logging.INFO,
+                                "WARNING": logging.WARNING,
+                                "ERROR": logging.ERROR
+                            }
+
+                            # Reset root logger
+                            root = logging.getLogger()
+                            for handler in root.handlers[:]:
+                                root.removeHandler(handler)
+
+                            # Set up file logging if enabled
+                            if enable_complete_logging and log_file_path:
+                                # Create log directory if it doesn't exist
+                                log_dir = os.path.dirname(log_file_path)
+                                if log_dir:
+                                    os.makedirs(log_dir, exist_ok=True)
+
+                                # Add timestamp to log filename
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                base, ext = os.path.splitext(log_file_path)
+                                timestamped_log_path = f"{base}_{timestamp}{ext}"
+
+                                # Create and configure file handler
+                                file_handler = logging.FileHandler(timestamped_log_path, mode='w', encoding='utf-8')
+                                file_handler.setLevel(log_level_map.get(log_level, logging.INFO))
+                                file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                                file_handler.setFormatter(file_formatter)
+                                
+                                # Create console handler
+                                console_handler = logging.StreamHandler(sys.stdout)
+                                console_handler.setLevel(log_level_map.get(log_level, logging.INFO))
+                                console_formatter = logging.Formatter('%(levelname)s - %(message)s')
+                                console_handler.setFormatter(console_formatter)
+                                
+                                # Configure root logger
+                                root.setLevel(log_level_map.get(log_level, logging.INFO))
+                                root.addHandler(file_handler)
+                                root.addHandler(console_handler)
+
+                                # Configure agent loggers
+                                agent_loggers = [
+                                    'browser_use.agent',
+                                    'browser_use.browser',
+                                    'browser_use.controller',
+                                    'browser_use.llm',
+                                    'browser_use.tools'
+                                ]
+                                
+                                for logger_name in agent_loggers:
+                                    agent_logger = logging.getLogger(logger_name)
+                                    agent_logger.setLevel(log_level_map.get(log_level, logging.INFO))
+                                    agent_logger.addHandler(file_handler)
+                                    agent_logger.addHandler(console_handler)
+                                
+                                # Log initial message to verify logging is working
+                                logging.info(f"Log file created at: {timestamped_log_path}")
+                                output_lines.append(f"Complete logs will be saved to: {timestamped_log_path}\n")
+
+                                # Set environment variable for agent logging
+                                os.environ['BROWSER_USE_LOGGING_LEVEL'] = log_level.lower()
+                            else:
+                                # Configure basic console logging if file logging is disabled
+                                logging.basicConfig(
+                                    level=log_level_map.get(log_level, logging.INFO),
+                                    format='%(levelname)s - %(message)s',
+                                    stream=sys.stdout
+                                )
+                            
+                            # Create reports directory if it doesn't exist
+                            os.makedirs('reports', exist_ok=True)
+                            
+                            # Log test execution start
+                            logging.info("Test execution started")
+                            output_lines.append(f"### Test Execution Started\n")
+                            output_lines.append(f"- Log Level: {log_level}\n")
+                            output_lines.append(f"- Feature Files: {len(feature_files)}\n")
+                            
+                            # Create test-reports directory if it doesn't exist
+                            os.makedirs('test-reports', exist_ok=True)
+                            
+                            # Prepare behave arguments with agent logging
+                            args = [
+                                '--format', 'json.pretty',
+                                '--outfile', os.path.join('reports', 'behave.json'),
+                                '--no-capture',  # Show stdout in real time
+                                '--no-skipped',   # Don't show skipped tests
+                                f'--logging-level={log_level.lower()}',  # Set behave logging level
+                                '--define',
+                                f'logging.level={log_level.lower()}'  # Pass logging level to steps
+                            ]
+
+                            # Add HTML formatter if enabled
+                            if enable_html_report:
+                                args.extend([
+                                    '--format', 'behave_html_formatter:HTMLFormatter',
+                                    '--outfile', html_report_path
+                                ])
+                                logging.info(f"HTML reporting enabled, report will be saved to: {html_report_path}")
+                            else:
+                                logging.info("HTML reporting disabled")
+
+                            if feature_files:
+                                args.extend(feature_files)
+
+                            # Log test configuration
+                            logging.info(f"Running behave with arguments: {' '.join(args)}")
+                            output_lines.append("\n### Test Configuration\n")
+                            output_lines.append(f"```\n{' '.join(args)}\n```\n")
+                            
+                            # Run behave in a separate thread to avoid event loop conflicts
+                            def run_tests():
+                                config = Configuration(args)
+                                return run_behave(config)
+                            
+                            # Run tests in an executor
+                            loop = asyncio.get_event_loop()
+                            success = await loop.run_in_executor(None, run_tests)
+                            
+                            # Process results from the JSON output file
+                            json_output_path = os.path.join('reports', 'behave.json')
+                            if os.path.exists(json_output_path):
+                                with open(json_output_path, 'r') as f:
+                                    test_data = json.load(f)
+                                
+                                # Log test results summary
+                                output_lines.append("\n### Test Results Summary\n")
+                                
+                                # Convert to dataframe format and collect statistics
+                                total_scenarios = 0
+                                passed_scenarios = 0
+                                failed_scenarios = 0
+                                total_duration = 0.0
+                                
+                                for feature in test_data:
+                                    feature_name = feature.get('name', '')
+                                    logging.info(f"Processing feature: {feature_name}")
+                                    output_lines.append(f"\n#### Feature: {feature_name}\n")
+                                    
+                                    for scenario in feature.get('elements', []):
+                                        if scenario.get('type') == 'scenario':
+                                            total_scenarios += 1
+                                            scenario_name = scenario.get('name', '')
+                                            status = "Passed"
+                                            error = ""
+                                            duration = 0.0
+                                            
+                                            # Process steps
+                                            logging.info(f"Processing scenario: {scenario_name}")
+                                            output_lines.append(f"\n##### Scenario: {scenario_name}\n")
+                                            for step in scenario.get('steps', []):
+                                                step_result = step.get('result', {})
+                                                step_status = step_result.get('status', 'unknown')
+                                                step_name = step.get('name', '')
+                                                step_duration = float(step_result.get('duration', 0))
+                                                
+                                                if step_status != 'passed':
+                                                    status = "Failed"
+                                                    error = step_result.get('error_message', '')
+                                                    failed_scenarios += 1
+                                                    logging.error(f"Step failed: {step_name}")
+                                                    if error:
+                                                        logging.error(f"Error message: {error}")
+                                                    output_lines.append(f"- ❌ {step_name} ({step_duration:.2f}s)\n")
+                                                    if error:
+                                                        output_lines.append(f"```\n{error}\n```\n")
+                                                else:
+                                                    logging.info(f"Step passed: {step_name}")
+                                                    output_lines.append(f"- ✅ {step_name} ({step_duration:.2f}s)\n")
+                                                
+                                                duration += step_duration
+                                            
+                                            if status == "Passed":
+                                                passed_scenarios += 1
+                                                
+                                            total_duration += duration
+                                            results.append([
+                                                feature_name,
+                                                scenario_name,
+                                                status,
+                                                f"{duration:.2f}s",
+                                                error
+                                            ])
+                                
+                                # Log summary statistics
+                                logging.info(f"Test execution completed - Total: {total_scenarios}, Passed: {passed_scenarios}, Failed: {failed_scenarios}")
+                                
+                                # Add summary statistics to output
+                                output_lines.insert(3, "\n### Statistics\n")
+                                output_lines.insert(4, f"- Total Scenarios: {total_scenarios}\n")
+                                output_lines.insert(5, f"- Passed: {passed_scenarios}\n")
+                                output_lines.insert(6, f"- Failed: {failed_scenarios}\n")
+                                output_lines.insert(7, f"- Total Duration: {total_duration:.2f}s\n")
+                                output_lines.insert(8, f"\n### HTML Report\n")
+                                output_lines.insert(9, f"HTML report has been generated at: test-reports/behave-report.html\n")
+                                
+                            else:
+                                error_msg = "No test output file found"
+                                logging.error(error_msg)
+                                output_lines.append(f"\n### Error: {error_msg}\n")
+                                
+                        except Exception as e:
+                            import traceback
+                            error_msg = f"Error running tests:\n{str(e)}\n{traceback.format_exc()}"
+                            logging.error(error_msg)
+                            output_lines.append(f"\n### Error\n```\n{error_msg}\n```\n")
+                        finally:
+                            # Clean up logging handlers
+                            if file_handler:
+                                file_handler.close()
+                                logging.getLogger().removeHandler(file_handler)
+                            
+                            # Reset root logger to default state
+                            for handler in logging.getLogger().handlers[:]:
+                                logging.getLogger().removeHandler(handler)
+                            
+                            # Restore basic console logging
+                            logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+                            
+                        return results, "\n".join(output_lines)
+
+                    def clear_test_results():
+                        return [], ""
+
+                    # Enable/disable log file path based on checkbox
+                    enable_complete_logging.change(
+                        lambda enabled: gr.update(interactive=enabled),
+                        inputs=[enable_complete_logging],
+                        outputs=[log_file_path]
+                    )
+
+                    # Enable/disable HTML report path based on checkbox
+                    enable_html_report.change(
+                        lambda enabled: gr.update(interactive=enabled),
+                        inputs=[enable_html_report],
+                        outputs=[html_report_path]
+                    )
+                    
+                    # Connect event handlers
+                    feature_list.change(
+                        fn=load_feature_content,
+                        inputs=[feature_list],
+                        outputs=[feature_content]
+                    )
+                    
+                    run_tests_button.click(
+                        fn=run_selected_test,
+                        inputs=[feature_list, log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path],
+                        outputs=[test_results, test_output]
+                    )
+                    
+                    run_all_tests_button.click(
+                        fn=run_all_gherkin_tests,
+                        inputs=[log_level, enable_complete_logging, log_file_path, enable_html_report, html_report_path],
+                        outputs=[test_results, test_output]
+                    )
+                    
+                    clear_results_button.click(
+                        fn=clear_test_results,
+                        inputs=[],
+                        outputs=[test_results, test_output]
+                    )
+
+            with gr.TabItem("⚙️ Agent Settings", id=2):
                 with gr.Group():
                     agent_type = gr.Radio(
                         ["org", "custom"],
@@ -670,7 +1045,7 @@ def create_ui(config, theme_name="Ocean"):
                             visible=False
                         )
 
-            with gr.TabItem("🔧 LLM Configuration", id=2):
+            with gr.TabItem("🔧 LLM Configuration", id=3):
                 with gr.Group():
                     llm_provider = gr.Dropdown(
                         choices=[provider for provider,model in utils.model_names.items()],
@@ -707,7 +1082,7 @@ def create_ui(config, theme_name="Ocean"):
                             info="Your API key (leave blank to use .env)"
                         )
 
-            with gr.TabItem("🌐 Browser Settings", id=3):
+            with gr.TabItem("🌐 Browser Settings", id=4):
                 with gr.Group():
                     with gr.Row():
                         use_own_browser = gr.Checkbox(
@@ -772,7 +1147,7 @@ def create_ui(config, theme_name="Ocean"):
                         interactive=True,
                     )
 
-            with gr.TabItem("🤖 Run Agent", id=4):
+            with gr.TabItem("🤖 Run Agent", id=5):
                 task = gr.Textbox(
                     label="Task Description",
                     lines=4,
@@ -797,7 +1172,7 @@ def create_ui(config, theme_name="Ocean"):
                         label="Live Browser View",
                 )
 
-            with gr.TabItem("📁 Configuration", id=5):
+            with gr.TabItem("📁 Configuration", id=6):
                 with gr.Group():
                     config_file_input = gr.File(
                         label="Load Config File",
@@ -838,7 +1213,7 @@ def create_ui(config, theme_name="Ocean"):
                     outputs=[config_status]
                 )
 
-            with gr.TabItem("📊 Results", id=6):
+            with gr.TabItem("📊 Results", id=7):
                 with gr.Group():
 
                     recording_display = gr.Video(label="Latest Recording")
@@ -897,7 +1272,7 @@ def create_ui(config, theme_name="Ocean"):
                     ],
                 )
 
-            with gr.TabItem("🎥 Recordings", id=7):
+            with gr.TabItem("🎥 Recordings", id=8):
                 def list_recordings(save_recording_path):
                     if not os.path.exists(save_recording_path):
                         return []
