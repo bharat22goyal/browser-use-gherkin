@@ -3,7 +3,7 @@ from playwright.sync_api import expect
 import logging
 
 @given('I am on "{url}"')
-def step_impl(context, url):
+def navigate_to_url(context, url):
     logging.info(f"Navigating to URL: {url}")
     # Handle URLs without protocol
     if not url.startswith(('http://', 'https://')):
@@ -24,7 +24,7 @@ def step_impl(context):
     logging.info("Successfully went forward in browser history")
 
 @then('the page title should contain "{text}"')
-def step_impl(context, text):
+def verify_page_title(context, text):
     logging.info(f"Verifying page title contains: {text}")
     # Wait for the title to contain the expected text
     current_title = context.page.title()
@@ -33,7 +33,7 @@ def step_impl(context, text):
     logging.info(f"Title verification successful. Actual title: {current_title}")
 
 @then('I should be on "{url}"')
-def step_impl(context, url):
+def verify_current_url(context, url):
     logging.info(f"Verifying current URL is: {url}")
     # Handle URLs without protocol
     if not url.startswith(('http://', 'https://')):

@@ -250,114 +250,39 @@ There are two ways to run the Gherkin tests:
 
 ### Example Feature File
 ```gherkin
+@llm
 Feature: Browser Search Functionality
-    Scenario: Search on Google
+    Scenario: Search with LLM
         Given I am on the Google homepage
-        When I search for "OpenAI"
+        When I search for "OpenAI ChatGPT"
         Then I should see search results
         And the first result should contain "openai.com"
 ```
 
 ### Test Structure
-- `features/`: Directory containing all feature files
-- `features/steps/`: Directory containing step definitions
-- `features/environment.py`: Test environment setup and teardown
-
-## Testing Framework
-
-The project includes a hybrid testing framework that supports both LLM-based and traditional browser automation tests.
-
-### Test Structure
 ```
 features/
-├── basic_navigation.feature  # Non-LLM tests
 ├── browser_search.feature   # LLM-based tests
 └── steps/
-    ├── basic_steps.py      # Non-LLM step definitions
-    ├── browser_steps.py    # LLM step definitions
-    └── common_steps.py     # Shared step definitions
+    ├── browser_steps.py    # LLM browser interactions
+    ├── interaction_steps.py # Common UI interactions
+    ├── common_steps.py     # Basic navigation steps
+    └── visual_steps.py     # Visual verification steps
 ```
-
-### Types of Tests
-
-1. **Non-LLM Tests** (`@non-llm` tag)
-   - Basic browser automation without AI assistance
-   - Direct element interactions
-   - Navigation and history checks
-   Example scenarios:
-   ```gherkin
-   Scenario: Basic Google Search
-   Scenario: Basic Navigation and History
-   Scenario: Basic Element Interactions
-   ```
-
-2. **LLM Tests** (`@llm` tag)
-   - AI-assisted browser automation
-   - Natural language interactions
-   - Visual recognition capabilities
-   Example scenarios:
-   ```gherkin
-   Scenario: Search with LLM
-   Scenario: Visual Search with LLM
-   ```
-
-### Running Tests
-
-1. **Setup Environment**
-   ```bash
-   # Install dependencies
-   pip install -r requirements.txt
-   
-   # Install Playwright browsers
-   playwright install
-   ```
-
-2. **Configure LLM (for LLM tests)**
-   - Set up your `.env` file with LLM configuration:
-   ```env
-   TEST_LLM_PROVIDER=ollama
-   TEST_LLM_MODEL=deepseek-coder:6.7b
-   TEST_LLM_BASE_URL=http://localhost:11434
-   ```
-
-3. **Run Tests**
-   ```bash
-   # Run non-LLM tests only
-   python run_tests.py --test-type=non-llm
-
-   # Run LLM tests with specific provider and model
-   python run_tests.py --test-type=llm --provider=ollama --model=deepseek-r1:14b
-
-   # Run all tests
-   python run_tests.py --test-type=all
-
-   # List available models
-   python run_tests.py --list-models
-   ```
-
-4. **View Results**
-   - Test results are generated in HTML format
-   - Check `test-reports/behave-report.html` for detailed results
 
 ### Test Development
 
-1. **Adding Non-LLM Tests**
-   - Add scenarios to `basic_navigation.feature`
-   - Use direct element selectors in step definitions
-   - Tag feature with `@non-llm`
-
-2. **Adding LLM Tests**
+1. **Adding LLM Tests**
    - Add scenarios to `browser_search.feature`
    - Use natural language in step definitions
    - Tag feature with `@llm`
 
-3. **Common Steps**
+2. **Common Steps**
    - Shared functionality in `common_steps.py`
-   - Used by both LLM and non-LLM tests
+   - Basic browser navigation and verification
 
 ### Best Practices
 - Keep scenarios focused and minimal
-- Use appropriate tags (`@llm` or `@non-llm`)
-- Maintain clear separation between LLM and non-LLM functionality
-- Reuse common steps when possible
+- Use descriptive scenario names
 - Follow Gherkin best practices for scenario writing
+- Maintain clear separation of concerns in step definitions
